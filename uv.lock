@@ -88,12 +88,12 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "django", specifier = ">=6.0.3" },
-    { name = "django-allauth", specifier = ">=65.15.0" },
-    { name = "django-browser-reload", specifier = ">=1.21.0" },
-    { name = "django-cleanup", specifier = ">=9.0.0" },
-    { name = "django-htmx", specifier = ">=1.27.0" },
-    { name = "pillow", specifier = ">=12.1.1" },
+    { name = "django", specifier = "==6.0.3" },
+    { name = "django-allauth", specifier = "==65.15.0" },
+    { name = "django-browser-reload", specifier = "==1.21.0" },
+    { name = "django-cleanup", specifier = "==9.0.0" },
+    { name = "django-htmx", specifier = "==1.27.0" },
+    { name = "pillow", specifier = "==12.1.1" },
 ]
 
 [[package]]
