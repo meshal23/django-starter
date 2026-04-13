@@ -12,8 +12,14 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 
+from environ import Env
+env = Env()
+env.read_env()
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_URL = 'http://localhost:8000'
 
 PROJECT_TITLE = "My App"
 
@@ -153,3 +159,6 @@ AUTH_USER_MODEL = 'a_users.CustomUser'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+
+STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY_TEST', default='secret')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='webhook')
