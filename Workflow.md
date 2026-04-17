@@ -55,4 +55,48 @@
     - add webhook secret in env, go to stripe --> developers --> webhooks --> add endpoint
     - add webhook secret in settings.py (comes from stripe-> created webhooks -> signing secret)
     - after define the webhook(), define in the url
-    
+
+## Build Shopping Cart
+- for that we Create a Cart object that we can directly get from templates (context processor)
+- we use htmx to dynamically update on the page
+- to view the products page that we can nhave multiple items 
+    - create view (shop_
+    view()) in a_stripe views.py, template, url
+    - now you can add multiple products on stripe and get it on the shop page (shop.html)
+- now create a shopping cart
+    - the class cart we're going to create contains all the properties & methods to add new items to the cart, removing it, or storing it to the session
+    - create cart.py in a_Stripe
+    - see in cart.py
+    - add cart.py in context processor so we can allow this in every templates
+    - create context_processors.py in a_stripe
+    - add to settings.py
+- implement add to cart button
+    - in views.py define add_to_cart() (see in views.py)
+    - then add to the urls
+    - in product_view you can now make the add to cart button dynamic (see product_view())
+    - then we make the button dynamic on product.html (see product.html)
+- add cart icon in the menu bar to show how many items in the cart 
+    - create a partial menu-cart.html (see in partials/menu-cart.html)
+    - add in header.html
+- now add htmx to prevent whole page reloads
+    - seperate the add to cart button as a partial (cart-button.html)
+    - add htmx in that button
+    - after that in add_to_cart() you render the partial cart-button.html with product_details
+    - now you should update the cart icon in the menu bar as well when you add to cart
+    - one way is using htmx swap oob (out of band) 
+    - another way is to use htmx trigger event
+        - in add_to_cart() add trigger event (see in views.py)
+        - go to header.html & update the cart element when the trigger happens
+        - now create urls for this event, view function
+- add the cart view
+    - views.py cart_view(), then add to urls
+    - then add this url to the cart button , cart menu icon (see cart.html)
+    - now we can see the cart page with all the items in the cart
+    - now we set up the quantity in the cart page, when the quantity changes, the price of the item should change also total amount also should change, also item numbers in the cart menu bar
+    - we use htmx event trigger and oob swap to update the cart page
+    - first, see in cart.html form page
+    - then in views.py cart_view(), set up the quantity update function, see in views.py
+    - add the url for the update_checkout(), create the update_checkout() view
+    - with using htmx oob we can update single item price changes when quantity updates
+    - add the remove button fuctionality, create remove_from_cart() in views.py, add to urls
+    - then add the remove button in cart.html
