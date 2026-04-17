@@ -6,42 +6,67 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.http import HttpResponse
 
+from .utils import get_product_details
+from .cart import Cart
+
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-def product_view(request):
-    product_id = 'prod_UKIprKGq1aAFtg'
+def shop_view(request):
+    product_list = stripe.Product.list()  #we are retrieving list of products from stripe, we can also retrieve more products by changing the limit
+    products = []
+    for product in product_list['data']: 
+        if product.metadata.category == 'shop':
+           products.append(get_product_details(product))
+    return render(request, 'shop.html', {'products': products})  
+
+def product_view(request, product_id):
     product = stripe.Product.retrieve(product_id)
+    product_details = get_product_details(product)
 
-    #for price it doesn't comes directly with product because a product can have multiple prices
-    prices = stripe.Price.list(product=product_id, limit=1)
-    price = prices.data[0]
-    product_price = price.unit_amount / 100 #stripe gives price in cents so we need to convert it to dollars
+    cart = Cart(request)
+    product_details['in_cart'] = product_id in cart.cart_session
     
-    if request.method == 'POST':
-        if not request.user.is_authenticated:
-            return redirect(f'{settings.BASE_URL}{reverse("account_login")}?next={request.get_full_path()}')
+    return render(request, 'product.html', {'product': product_details})
+
+def add_to_cart(request, product_id):
+    cart = Cart(request)
+    cart.add(product_id)
+
+    product = stripe.Product.retrieve(product_id)
+    product_details = get_product_details(product)
+    product_details['in_cart'] = product_id in cart.cart_session
+
+    response = render(request, 'partials/cart-button.html', {'product': product_details})
+    response["HX-Trigger"] = 'hx_menu_cart'
+
+    return response
+
+def hx_menu_cart(request):
+    return render(request, 'partials/menu-cart.html')
+
+
+def cart_view(request):
+    quantity_range = list(range(1,11))
+    return render(request, 'cart.html', {'quantity_range': quantity_range})
+
+def update_checkout(request, product_id):
+    quantity = int(request.POST.get('quantity', 1))
+    cart = Cart(request)
+    cart.add(product_id, quantity)
+
+    product = stripe.Product.retrieve(product_id)
+    product_details = get_product_details(product)
+    product_details['total_price'] = product_details['price'] * quantity
         
-        # create checkout session
-        price_id = request.POST.get('price_id')
-        quantity = int(request.POST.get('quantity'))
-        checkout_session = stripe.checkout.Session.create(
-            line_items = [
-                {
-                    'price': price_id,
-                    'quantity': quantity,
-                },
-            ],
-            payment_method_types = ['card'],
-            mode = 'payment',
-            customer_creation = 'always', #more preferrable for one time payments
-            success_url = f'{settings.BASE_URL}{reverse("payment_successful")}?session_id={{CHECKOUT_SESSION_ID}}',
-            cancel_url = f'{settings.BASE_URL}{reverse("payment_cancelled")}',
-        )
-        return redirect(checkout_session.url, code=303)
+    response = render(request, 'partials/checkout-total.html', {'product': product_details})
+    response["HX-Trigger"] = 'hx_menu_cart'
+    return response
 
+def remove_from_cart(request, product_id):
+    cart = Cart(request)
+    cart.remove(product_id)
 
-
-    return render(request, 'a_stripe/product.html', {'product': product, 'product_price': product_price})
+    return redirect('cart')
 
 def payment_successful(request):
     checkout_session_id = request.GET.get('session_id')
@@ -64,11 +89,11 @@ def payment_successful(request):
         has_paid=True, #since we are redirecting to this page only after successful payment, we can set it to True directly, but in real world scenario we should update this field with a webhook to avoid any frauds
     )
 
-    return render(request, 'a_stripe/payment_successful.html', {'customer': customer})
+    return render(request, 'payment_successful.html', {'customer': customer})
 
 
 def payment_cancelled(request):
-    return render(request, 'a_stripe/payment_cancelled.html')
+    return render(request, 'payment_cancelled.html')
 
 @require_POST  #this function only access by POST request
 @csrf_exempt  #this function is not protected by csrf token
