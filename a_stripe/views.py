@@ -4,10 +4,14 @@ import stripe
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required   
+
 from django.http import HttpResponse
 
-from .utils import get_product_details
+from .utils import get_product_details, create_checkout_session
 from .cart import Cart
+
+from .forms import *
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -68,6 +72,43 @@ def remove_from_cart(request, product_id):
 
     return redirect('cart')
 
+@login_required
+def checkout_view(request):
+    # if the user already buy products we should show the checkout details on the form
+    shipping_info = ShippingInfo.objects.filter(user=request.user).first()
+
+    if shipping_info:
+        form = ShippingForm(instance=shipping_info) 
+    else:
+        form = ShippingForm(initial={'email':request.user.email})
+    
+    if request.method == 'POST':
+        form = ShippingForm(request.POST)
+        print("form errors: ", form.errors)  #this will print the form errors in the console, you can check the console to see what is wrong with the form data
+        if form.is_valid():
+            shipping_info = form.save(commit=False) #commit to False because we still have to attach user to this form
+            shipping_info.user = request.user
+            shipping_info.email = form.cleaned_data['email'].lower()
+            shipping_info.save()
+
+            cart = Cart(request)
+            checkout_session = create_checkout_session(cart, shipping_info.email)
+
+            # before we redirect to stripe's checkout page we create record in CheckoutSession table and then after stripe checkout completed,
+            #  we edit the has_paid in out CheckoutSession table
+            CheckoutSession.objects.create(
+                checkout_id = checkout_session.id,
+                shipping_info = shipping_info,
+                total_cost = cart.get_total_cost()
+            )
+
+            print("url: ",checkout_session.url)
+
+            return redirect(checkout_session.url, code=303)
+    
+    return render(request, 'checkout.html', {'form':form})
+
+
 def payment_successful(request):
     checkout_session_id = request.GET.get('session_id')
 
@@ -76,18 +117,14 @@ def payment_successful(request):
         customer_id = session.customer
         customer = stripe.Customer.retrieve(customer_id)
 
-    line_item = stripe.checkout.Session.list_line_items(checkout_session_id).data[0]
-    UserPayment.objects.get_or_create(
-        user=request.user,
-        stripe_customer_id=customer_id,
-        stripe_checkout_id=checkout_session_id,
-        stripe_product_id=line_item.price.product,
-        product_name=line_item.description,
-        quantity=line_item.quantity,
-        price=line_item.amount_total / 100,
-        currency=line_item.price.currency,
-        has_paid=True, #since we are redirecting to this page only after successful payment, we can set it to True directly, but in real world scenario we should update this field with a webhook to avoid any frauds
-    )
+        # after payment successful we del the cart_sessio
+        if settings.CART_SESSION_ID in request.session:
+            del request.session[settings.CART_SESSION_ID]
+
+        if settings.DEBUG:
+            checkout = CheckoutSession.objects.get(checkout_id=checkout_session_id)
+            checkout.has_paid = True
+            checkout.save()
 
     return render(request, 'payment_successful.html', {'customer': customer})
 
@@ -114,8 +151,8 @@ def stripe_webhook(request):
     if event['type'] == 'checkout.session.completed':  #if the event is checkout.session.completed, we update the payment status
         session = event['data']['object']  #we retrieve the session object from the event
         checkout_session_id = session.get('id')
-        user_payment = UserPayment.objects.get(stripe_checkout_id=checkout_session_id)
-        user_payment.has_paid = True
-        user_payment.save()
+        checkout = CheckoutSession.objects.get(checkout_id=checkout_session_id)
+        checkout.has_paid = True
+        checkout.save()
 
     return HttpResponse(status=200)
