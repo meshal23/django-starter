@@ -100,3 +100,20 @@
     - with using htmx oob we can update single item price changes when quantity updates
     - add the remove button fuctionality, create remove_from_cart() in views.py, add to urls
     - then add the remove button in cart.html
+
+## Build checkout page
+- getting shipping info from customers and finish payment process
+- create a new table to store the shipping info
+- in a_stripe, models.py create class ShippingInfo (see models.py)
+- create another table for store the checkout session , create class CheckoutSession
+- register them into admin.py
+- makemigrations, migrate
+- now we create the shipping form
+- create a_stripe, forms.py and create ShippingForm (see forms.py)
+- add this form to views.py in checkout_view() (see views.py)
+- create checkout.html (see templates/checkout.html), add url in urls.py
+- add href in checkout_total.html (see templates/partials/checkout_total.html)
+- now we have to save this shipping info on the database, redirect to stripe checkout page when click confirm
+    - see checkout_view() in views.py
+    - modify payment successful landing page (in views.py)
+    - and also checkout_view() we set the shipping info to show to form if user already made purcheases
